@@ -48,10 +48,10 @@ permissions:
   contents: read
 
 env:
-  PYTHON_VERSION: '3.12'
-  WEBAPP_NAME:    'app-cert-scanner-dev'
-  RESOURCE_GROUP: 'rg-cert-scanner-dev'
-  LOCATION:       'eastus'
+  PYTHON_VERSION:      '3.12'
+  CONTAINER_APP_NAME:  'app-cert-scanner-dev'
+  RESOURCE_GROUP:      'rg-cert-scanner-dev'
+  LOCATION:            'eastus'
 
 # ── Job 1: Test (runs on every push and PR) ───────────────────────────────────
 jobs:
@@ -90,9 +90,11 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     environment: dev
     outputs:
-      kv_name: ${{ steps.bicep.outputs.kv_name }}
-      dce_endpoint: ${{ steps.bicep.outputs.dce_endpoint }}
+      kv_name:          ${{ steps.bicep.outputs.kv_name }}
+      dce_endpoint:     ${{ steps.bicep.outputs.dce_endpoint }}
       dcr_immutable_id: ${{ steps.bicep.outputs.dcr_immutable_id }}
+      acr_name:         ${{ steps.bicep.outputs.acr_name }}
+      acr_login_server: ${{ steps.bicep.outputs.acr_login_server }}
 
     steps:
       - uses: actions/checkout@v4
@@ -116,9 +118,11 @@ jobs:
             --query 'properties.outputs' -o json)
 
           echo "$RESULT" | jq .
-          echo "kv_name=$(echo $RESULT           | jq -r '.keyVaultName.value')"        >> $GITHUB_OUTPUT
+          echo "kv_name=$(echo $RESULT           | jq -r '.keyVaultName.value')"          >> $GITHUB_OUTPUT
           echo "dce_endpoint=$(echo $RESULT       | jq -r '.dceEndpoint.value // ""')"   >> $GITHUB_OUTPUT
           echo "dcr_immutable_id=$(echo $RESULT   | jq -r '.dcrImmutableId.value // ""')" >> $GITHUB_OUTPUT
+          echo "acr_name=$(echo $RESULT           | jq -r '.acrName.value')"              >> $GITHUB_OUTPUT
+          echo "acr_login_server=$(echo $RESULT   | jq -r '.acrLoginServer.value')"       >> $GITHUB_OUTPUT
 
       - name: Write secrets to Key Vault
         run: |
@@ -128,7 +132,7 @@ jobs:
           az keyvault secret set --vault-name "$KV" \
             --name "azure-client-secret" --value "${{ secrets.APP_CLIENT_SECRET }}"
 
-# ── Job 3: Deploy Application ─────────────────────────────────────────────────
+# Job 3: Deploy Application - build Docker image, push to ACR, update Container App
   deploy-app:
     name: Deploy Application
     runs-on: ubuntu-latest
@@ -138,14 +142,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: pip
-
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-
       - name: Azure Login (OIDC)
         uses: azure/login@v2
         with:
@@ -153,37 +149,40 @@ jobs:
           tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Deploy to Azure App Service
-        uses: azure/webapps-deploy@v3
-        with:
-          app-name: ${{ env.WEBAPP_NAME }}
-          package: .
-
-      - name: Configure Log Analytics settings
-        # DCE/DCR values come from Bicep outputs; set them in App Service
+      - name: Build and push image via ACR Tasks
         run: |
+          ACR="${{ needs.deploy-infra.outputs.acr_name }}"
+          az acr build \
+            --registry "$ACR" \
+            --image    "cert-scanner/app:${{ github.sha }}" \
+            --image    "cert-scanner/app:latest" \
+            .
+
+      - name: Update Container App secrets with real values
+        run: |
+          az containerapp secret set \
+            --name            "${{ env.CONTAINER_APP_NAME }}" \
+            --resource-group  "${{ env.RESOURCE_GROUP }}" \
+            --secrets         "flask-secret-key=${{ secrets.FLASK_SECRET_KEY }}" \
+                              "azure-client-secret=${{ secrets.APP_CLIENT_SECRET }}"
+
+      - name: Deploy new image to Container App
+        run: |
+          ACR_SERVER="${{ needs.deploy-infra.outputs.acr_login_server }}"
           DCE="${{ needs.deploy-infra.outputs.dce_endpoint }}"
           DCR="${{ needs.deploy-infra.outputs.dcr_immutable_id }}"
 
-          if [ -n "$DCE" ] && [ -n "$DCR" ]; then
-            az webapp config appsettings set \
-              --name            "${{ env.WEBAPP_NAME }}" \
-              --resource-group  "${{ env.RESOURCE_GROUP }}" \
-              --settings \
-                "LOG_ANALYTICS_DCE_ENDPOINT=$DCE" \
-                "LOG_ANALYTICS_DCR_IMMUTABLE_ID=$DCR"
-          fi
-
-      - name: Restart App Service
-        run: |
-          az webapp restart \
-            --name           "${{ env.WEBAPP_NAME }}" \
-            --resource-group "${{ env.RESOURCE_GROUP }}"
+          az containerapp update \
+            --name           "${{ env.CONTAINER_APP_NAME }}" \
+            --resource-group "${{ env.RESOURCE_GROUP }}" \
+            --image          "${ACR_SERVER}/cert-scanner/app:${{ github.sha }}" \
+            --set-env-vars   "LOG_ANALYTICS_DCE_ENDPOINT=${DCE}" \
+                             "LOG_ANALYTICS_DCR_IMMUTABLE_ID=${DCR}"
 
       - name: Print app URL
         run: |
-          URL=$(az webapp show \
-            --name "${{ env.WEBAPP_NAME }}" \
+          URL=$(az containerapp show \
+            --name           "${{ env.CONTAINER_APP_NAME }}" \
             --resource-group "${{ env.RESOURCE_GROUP }}" \
-            --query defaultHostName -o tsv)
+            --query          "properties.configuration.ingress.fqdn" -o tsv)
           echo "### Deployed to https://$URL" >> $GITHUB_STEP_SUMMARY

@@ -18,8 +18,8 @@ var contributorRoleId   = 'b24988ac-6180-42a0-ab88-20f7382dd24c'
 var userAccessAdminId   = '18d7d88d-d35e-4fb5-a5c3-7773c20a72d9'
 
 // Deterministic names for role assignments (known at compile time)
-var appSvcResourceName  = 'app-${appName}-${env}'
-var deployIdName        = 'id-${appName}-deploy-${env}'
+var containerAppResourceName = 'app-${appName}-${env}'
+var deployIdName             = 'id-${appName}-deploy-${env}'
 
 resource rg 'Microsoft.Resources/resourceGroups@2023-07-01' = {
   name: rgName
@@ -61,8 +61,14 @@ module keyVault 'modules/keyvault.bicep' = {
   params: { location: location, env: env, appName: appName }
 }
 
-module appService 'modules/appservice.bicep' = {
-  name: 'appservice'
+module containerRegistry 'modules/containerregistry.bicep' = {
+  name: 'containerregistry'
+  scope: rg
+  params: { location: location, env: env, appName: appName }
+}
+
+module containerApp 'modules/containerapps.bicep' = {
+  name: 'containerapps'
   scope: rg
   params: {
     location: location
@@ -72,9 +78,11 @@ module appService 'modules/appservice.bicep' = {
     storageAccountUrl: storage.outputs.blobEndpoint
     appInsightsConnectionString: appInsights.outputs.connectionString
     logAnalyticsWorkspaceId: logAnalytics.outputs.workspaceId
+    logAnalyticsWorkspaceName: logAnalytics.outputs.workspaceName
     tenantId: tenantId
     clientId: clientId
     keyVaultName: keyVault.outputs.vaultName
+    registryLoginServer: containerRegistry.outputs.loginServer
   }
 }
 
@@ -91,35 +99,36 @@ module deploymentIdentity 'modules/deploymentidentity.bicep' = {
   }
 }
 
-// Resource-level role assignments for App Service MI
+// Resource-level role assignments for Container App MI
 module roleAssignments 'modules/roleassignments.bicep' = {
   name: 'roleassignments'
   scope: rg
   params: {
-    appServicePrincipalId:    appService.outputs.principalId
-    cosmosAccountName:        cosmos.outputs.cosmosAccountName
-    storageAccountName:       storage.outputs.storageAccountName
-    keyVaultName:             keyVault.outputs.vaultName
+    containerAppPrincipalId:   containerApp.outputs.principalId
+    cosmosAccountName:         cosmos.outputs.cosmosAccountName
+    storageAccountName:        storage.outputs.storageAccountName
+    keyVaultName:              keyVault.outputs.vaultName
     logAnalyticsWorkspaceName: logAnalytics.outputs.workspaceName
-    dcrResourceId:            logAnalytics.outputs.dcrId
+    dcrResourceId:             logAnalytics.outputs.dcrId
+    containerRegistryName:     containerRegistry.outputs.registryName
   }
 }
 
-// Subscription-scope: App Service MI - Reader + KV Certificate User
+// Subscription-scope: Container App MI - Reader + KV Certificate User
 resource appSvcReader 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(subscription().id, appSvcResourceName, readerRoleId)
+  name: guid(subscription().id, containerAppResourceName, readerRoleId)
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', readerRoleId)
-    principalId: appService.outputs.principalId
+    principalId: containerApp.outputs.principalId
     principalType: 'ServicePrincipal'
   }
 }
 
 resource appSvcKvCertUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(subscription().id, appSvcResourceName, kvCertUserRoleId)
+  name: guid(subscription().id, containerAppResourceName, kvCertUserRoleId)
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', kvCertUserRoleId)
-    principalId: appService.outputs.principalId
+    principalId: containerApp.outputs.principalId
     principalType: 'ServicePrincipal'
   }
 }
@@ -144,12 +153,14 @@ resource deployUAA 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
 }
 
 // Outputs
-output appUrl                        string = appService.outputs.appUrl
-output appServicePrincipalId         string = appService.outputs.principalId
+output appUrl                        string = containerApp.outputs.appUrl
+output containerAppPrincipalId       string = containerApp.outputs.principalId
+output containerAppName              string = containerApp.outputs.containerAppName
+output acrLoginServer                string = containerRegistry.outputs.loginServer
+output acrName                       string = containerRegistry.outputs.registryName
 output deploymentIdentityClientId    string = deploymentIdentity.outputs.clientId
 output deploymentIdentityPrincipalId string = deploymentIdentity.outputs.principalId
 output keyVaultName                  string = keyVault.outputs.vaultName
 output resourceGroup                 string = rgName
-output appServiceName                string = 'app-${appName}-${env}'
 output dceEndpoint                   string = logAnalytics.outputs.dceEndpoint
 output dcrImmutableId                string = logAnalytics.outputs.dcrImmutableId

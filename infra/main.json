@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.38.33.27573",
-      "templateHash": "4777339718249020100"
+      "templateHash": "2387993588148252306"
     }
   },
   "parameters": {
@@ -46,7 +46,7 @@
     "kvCertUserRoleId": "db79e9a7-68ee-4b58-9aeb-b90e7c24fcba",
     "contributorRoleId": "b24988ac-6180-42a0-ab88-20f7382dd24c",
     "userAccessAdminId": "18d7d88d-d35e-4fb5-a5c3-7773c20a72d9",
-    "appSvcResourceName": "[format('app-{0}-{1}', parameters('appName'), parameters('env'))]",
+    "containerAppResourceName": "[format('app-{0}-{1}', parameters('appName'), parameters('env'))]",
     "deployIdName": "[format('id-{0}-deploy-{1}', parameters('appName'), parameters('env'))]"
   },
   "resources": [
@@ -59,27 +59,27 @@
     {
       "type": "Microsoft.Authorization/roleAssignments",
       "apiVersion": "2022-04-01",
-      "name": "[guid(subscription().id, variables('appSvcResourceName'), variables('readerRoleId'))]",
+      "name": "[guid(subscription().id, variables('containerAppResourceName'), variables('readerRoleId'))]",
       "properties": {
         "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('readerRoleId'))]",
-        "principalId": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('rgName')), 'Microsoft.Resources/deployments', 'appservice'), '2025-04-01').outputs.principalId.value]",
+        "principalId": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('rgName')), 'Microsoft.Resources/deployments', 'containerapps'), '2025-04-01').outputs.principalId.value]",
         "principalType": "ServicePrincipal"
       },
       "dependsOn": [
-        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('rgName')), 'Microsoft.Resources/deployments', 'appservice')]"
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('rgName')), 'Microsoft.Resources/deployments', 'containerapps')]"
       ]
     },
     {
       "type": "Microsoft.Authorization/roleAssignments",
       "apiVersion": "2022-04-01",
-      "name": "[guid(subscription().id, variables('appSvcResourceName'), variables('kvCertUserRoleId'))]",
+      "name": "[guid(subscription().id, variables('containerAppResourceName'), variables('kvCertUserRoleId'))]",
       "properties": {
         "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('kvCertUserRoleId'))]",
-        "principalId": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('rgName')), 'Microsoft.Resources/deployments', 'appservice'), '2025-04-01').outputs.principalId.value]",
+        "principalId": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('rgName')), 'Microsoft.Resources/deployments', 'containerapps'), '2025-04-01').outputs.principalId.value]",
         "principalType": "ServicePrincipal"
       },
       "dependsOn": [
-        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('rgName')), 'Microsoft.Resources/deployments', 'appservice')]"
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('rgName')), 'Microsoft.Resources/deployments', 'containerapps')]"
       ]
     },
     {
@@ -761,7 +761,87 @@
     {
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
-      "name": "appservice",
+      "name": "containerregistry",
+      "resourceGroup": "[variables('rgName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "env": {
+            "value": "[parameters('env')]"
+          },
+          "appName": {
+            "value": "[parameters('appName')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.38.33.27573",
+              "templateHash": "17766041928247720829"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string"
+            },
+            "env": {
+              "type": "string"
+            },
+            "appName": {
+              "type": "string"
+            }
+          },
+          "variables": {
+            "registryName": "[toLower(take(replace(replace(format('cr{0}{1}', parameters('appName'), parameters('env')), '-', ''), '_', ''), 50))]"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.ContainerRegistry/registries",
+              "apiVersion": "2023-07-01",
+              "name": "[variables('registryName')]",
+              "location": "[parameters('location')]",
+              "sku": {
+                "name": "Basic"
+              },
+              "properties": {
+                "adminUserEnabled": false,
+                "publicNetworkAccess": "Enabled"
+              }
+            }
+          ],
+          "outputs": {
+            "loginServer": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.ContainerRegistry/registries', variables('registryName')), '2023-07-01').loginServer]"
+            },
+            "registryName": {
+              "type": "string",
+              "value": "[variables('registryName')]"
+            },
+            "registryId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.ContainerRegistry/registries', variables('registryName'))]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('rgName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "containerapps",
       "resourceGroup": "[variables('rgName')]",
       "properties": {
         "expressionEvaluationOptions": {
@@ -790,6 +870,9 @@
           "logAnalyticsWorkspaceId": {
             "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('rgName')), 'Microsoft.Resources/deployments', 'loganalytics'), '2025-04-01').outputs.workspaceId.value]"
           },
+          "logAnalyticsWorkspaceName": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('rgName')), 'Microsoft.Resources/deployments', 'loganalytics'), '2025-04-01').outputs.workspaceName.value]"
+          },
           "tenantId": {
             "value": "[parameters('tenantId')]"
           },
@@ -798,6 +881,9 @@
           },
           "keyVaultName": {
             "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('rgName')), 'Microsoft.Resources/deployments', 'keyvault'), '2025-04-01').outputs.vaultName.value]"
+          },
+          "registryLoginServer": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('rgName')), 'Microsoft.Resources/deployments', 'containerregistry'), '2025-04-01').outputs.loginServer.value]"
           }
         },
         "template": {
@@ -807,7 +893,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "10475978746267401913"
+              "templateHash": "5464365284373292183"
             }
           },
           "parameters": {
@@ -840,110 +926,165 @@
             },
             "keyVaultName": {
               "type": "string"
+            },
+            "registryLoginServer": {
+              "type": "string"
+            },
+            "logAnalyticsWorkspaceName": {
+              "type": "string"
             }
           },
           "variables": {
-            "planName": "[format('asp-{0}-{1}', parameters('appName'), parameters('env'))]",
-            "siteName": "[format('app-{0}-{1}', parameters('appName'), parameters('env'))]"
+            "envName": "[format('cae-{0}-{1}', parameters('appName'), parameters('env'))]",
+            "containerAppName": "[format('app-{0}-{1}', parameters('appName'), parameters('env'))]"
           },
           "resources": [
             {
-              "type": "Microsoft.Web/serverfarms",
-              "apiVersion": "2023-01-01",
-              "name": "[variables('planName')]",
+              "type": "Microsoft.App/managedEnvironments",
+              "apiVersion": "2023-05-01",
+              "name": "[variables('envName')]",
               "location": "[parameters('location')]",
-              "sku": {
-                "name": "F1",
-                "tier": "Free"
-              },
               "properties": {
-                "reserved": true
-              },
-              "kind": "linux"
+                "appLogsConfiguration": {
+                  "destination": "log-analytics",
+                  "logAnalyticsConfiguration": {
+                    "customerId": "[reference(resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName')), '2023-09-01').customerId]",
+                    "sharedKey": "[listKeys(resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName')), '2023-09-01').primarySharedKey]"
+                  }
+                }
+              }
             },
             {
-              "type": "Microsoft.Web/sites",
-              "apiVersion": "2023-01-01",
-              "name": "[variables('siteName')]",
+              "type": "Microsoft.App/containerApps",
+              "apiVersion": "2023-05-01",
+              "name": "[variables('containerAppName')]",
               "location": "[parameters('location')]",
               "identity": {
                 "type": "SystemAssigned"
               },
               "properties": {
-                "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('planName'))]",
-                "httpsOnly": true,
-                "siteConfig": {
-                  "linuxFxVersion": "PYTHON|3.12",
-                  "appCommandLine": "startup.sh",
-                  "minTlsVersion": "1.2",
-                  "ftpsState": "Disabled",
-                  "appSettings": [
+                "managedEnvironmentId": "[resourceId('Microsoft.App/managedEnvironments', variables('envName'))]",
+                "configuration": {
+                  "ingress": {
+                    "external": true,
+                    "targetPort": 8000,
+                    "transport": "auto",
+                    "allowInsecure": false
+                  },
+                  "registries": [
                     {
-                      "name": "AZURE_TENANT_ID",
-                      "value": "[parameters('tenantId')]"
+                      "server": "[parameters('registryLoginServer')]",
+                      "identity": "system"
+                    }
+                  ],
+                  "secrets": [
+                    {
+                      "name": "flask-secret-key",
+                      "value": "placeholder-update-via-pipeline"
                     },
                     {
-                      "name": "AZURE_CLIENT_ID",
-                      "value": "[parameters('clientId')]"
-                    },
-                    {
-                      "name": "COSMOS_ENDPOINT",
-                      "value": "[parameters('cosmosEndpoint')]"
-                    },
-                    {
-                      "name": "COSMOS_DATABASE",
-                      "value": "certificate-scanner"
-                    },
-                    {
-                      "name": "STORAGE_ACCOUNT_URL",
-                      "value": "[parameters('storageAccountUrl')]"
-                    },
-                    {
-                      "name": "APPINSIGHTS_CONNECTION_STRING",
-                      "value": "[parameters('appInsightsConnectionString')]"
-                    },
-                    {
-                      "name": "LOG_ANALYTICS_WORKSPACE_ID",
-                      "value": "[parameters('logAnalyticsWorkspaceId')]"
-                    },
-                    {
-                      "name": "FLASK_ENV",
-                      "value": "[parameters('env')]"
-                    },
-                    {
-                      "name": "SCM_DO_BUILD_DURING_DEPLOYMENT",
-                      "value": "true"
-                    },
-                    {
-                      "name": "SECRET_KEY",
-                      "value": "[format('@Microsoft.KeyVault(VaultName={0};SecretName=flask-secret-key)', parameters('keyVaultName'))]"
-                    },
-                    {
-                      "name": "AZURE_CLIENT_SECRET",
-                      "value": "[format('@Microsoft.KeyVault(VaultName={0};SecretName=azure-client-secret)', parameters('keyVaultName'))]"
+                      "name": "azure-client-secret",
+                      "value": "placeholder-update-via-pipeline"
                     }
                   ]
+                },
+                "template": {
+                  "containers": [
+                    {
+                      "name": "cert-scanner",
+                      "image": "mcr.microsoft.com/k8se/quickstart:latest",
+                      "resources": {
+                        "cpu": "[json('0.5')]",
+                        "memory": "1.0Gi"
+                      },
+                      "env": [
+                        {
+                          "name": "AZURE_TENANT_ID",
+                          "value": "[parameters('tenantId')]"
+                        },
+                        {
+                          "name": "AZURE_CLIENT_ID",
+                          "value": "[parameters('clientId')]"
+                        },
+                        {
+                          "name": "COSMOS_ENDPOINT",
+                          "value": "[parameters('cosmosEndpoint')]"
+                        },
+                        {
+                          "name": "COSMOS_DATABASE",
+                          "value": "certificate-scanner"
+                        },
+                        {
+                          "name": "STORAGE_ACCOUNT_URL",
+                          "value": "[parameters('storageAccountUrl')]"
+                        },
+                        {
+                          "name": "APPINSIGHTS_CONNECTION_STRING",
+                          "value": "[parameters('appInsightsConnectionString')]"
+                        },
+                        {
+                          "name": "LOG_ANALYTICS_WORKSPACE_ID",
+                          "value": "[parameters('logAnalyticsWorkspaceId')]"
+                        },
+                        {
+                          "name": "FLASK_ENV",
+                          "value": "[parameters('env')]"
+                        },
+                        {
+                          "name": "KEY_VAULT_NAME",
+                          "value": "[parameters('keyVaultName')]"
+                        },
+                        {
+                          "name": "SECRET_KEY",
+                          "secretRef": "flask-secret-key"
+                        },
+                        {
+                          "name": "AZURE_CLIENT_SECRET",
+                          "secretRef": "azure-client-secret"
+                        }
+                      ]
+                    }
+                  ],
+                  "scale": {
+                    "minReplicas": 0,
+                    "maxReplicas": 2,
+                    "rules": [
+                      {
+                        "name": "http-scaler",
+                        "http": {
+                          "metadata": {
+                            "concurrentRequests": "10"
+                          }
+                        }
+                      }
+                    ]
+                  }
                 }
               },
               "dependsOn": [
-                "[resourceId('Microsoft.Web/serverfarms', variables('planName'))]"
+                "[resourceId('Microsoft.App/managedEnvironments', variables('envName'))]"
               ]
             }
           ],
           "outputs": {
-            "principalId": {
-              "type": "string",
-              "value": "[reference(resourceId('Microsoft.Web/sites', variables('siteName')), '2023-01-01', 'full').identity.principalId]"
-            },
             "appUrl": {
               "type": "string",
-              "value": "[format('https://{0}', reference(resourceId('Microsoft.Web/sites', variables('siteName')), '2023-01-01').defaultHostName)]"
+              "value": "[format('https://{0}', reference(resourceId('Microsoft.App/containerApps', variables('containerAppName')), '2023-05-01').configuration.ingress.fqdn)]"
+            },
+            "principalId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.App/containerApps', variables('containerAppName')), '2023-05-01', 'full').identity.principalId]"
+            },
+            "containerAppName": {
+              "type": "string",
+              "value": "[variables('containerAppName')]"
             }
           }
         }
       },
       "dependsOn": [
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('rgName')), 'Microsoft.Resources/deployments', 'appinsights')]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('rgName')), 'Microsoft.Resources/deployments', 'containerregistry')]",
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('rgName')), 'Microsoft.Resources/deployments', 'cosmosdb')]",
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('rgName')), 'Microsoft.Resources/deployments', 'keyvault')]",
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('rgName')), 'Microsoft.Resources/deployments', 'loganalytics')]",
@@ -1082,8 +1223,8 @@
         },
         "mode": "Incremental",
         "parameters": {
-          "appServicePrincipalId": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('rgName')), 'Microsoft.Resources/deployments', 'appservice'), '2025-04-01').outputs.principalId.value]"
+          "containerAppPrincipalId": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('rgName')), 'Microsoft.Resources/deployments', 'containerapps'), '2025-04-01').outputs.principalId.value]"
           },
           "cosmosAccountName": {
             "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('rgName')), 'Microsoft.Resources/deployments', 'cosmosdb'), '2025-04-01').outputs.cosmosAccountName.value]"
@@ -1099,6 +1240,9 @@
           },
           "dcrResourceId": {
             "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('rgName')), 'Microsoft.Resources/deployments', 'loganalytics'), '2025-04-01').outputs.dcrId.value]"
+          },
+          "containerRegistryName": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('rgName')), 'Microsoft.Resources/deployments', 'containerregistry'), '2025-04-01').outputs.registryName.value]"
           }
         },
         "template": {
@@ -1108,11 +1252,11 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "11689900853247446581"
+              "templateHash": "9196203627422339810"
             }
           },
           "parameters": {
-            "appServicePrincipalId": {
+            "containerAppPrincipalId": {
               "type": "string"
             },
             "cosmosAccountName": {
@@ -1129,21 +1273,25 @@
             },
             "dcrResourceId": {
               "type": "string"
+            },
+            "containerRegistryName": {
+              "type": "string"
             }
           },
           "variables": {
             "storageBlobDataContributorId": "ba92f5b4-2d11-453d-a403-e96b0029c9fe",
             "kvSecretsUserId": "4633458b-17de-408a-b874-0445c86b69e6",
-            "monitoringMetricsPublisherId": "3913510d-42f4-4e42-8a64-420c390055eb"
+            "monitoringMetricsPublisherId": "3913510d-42f4-4e42-8a64-420c390055eb",
+            "acrPullRoleId": "7f951dda-4ed3-4680-a7ca-43fe172d538d"
           },
           "resources": [
             {
               "type": "Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments",
               "apiVersion": "2023-04-15",
-              "name": "[format('{0}/{1}', parameters('cosmosAccountName'), guid(resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosAccountName')), parameters('appServicePrincipalId'), '00000000-0000-0000-0000-000000000002'))]",
+              "name": "[format('{0}/{1}', parameters('cosmosAccountName'), guid(resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosAccountName')), parameters('containerAppPrincipalId'), '00000000-0000-0000-0000-000000000002'))]",
               "properties": {
                 "roleDefinitionId": "[format('{0}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002', resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosAccountName')))]",
-                "principalId": "[parameters('appServicePrincipalId')]",
+                "principalId": "[parameters('containerAppPrincipalId')]",
                 "scope": "[resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosAccountName'))]"
               }
             },
@@ -1151,10 +1299,10 @@
               "type": "Microsoft.Authorization/roleAssignments",
               "apiVersion": "2022-04-01",
               "scope": "[format('Microsoft.Storage/storageAccounts/{0}', parameters('storageAccountName'))]",
-              "name": "[guid(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), parameters('appServicePrincipalId'), variables('storageBlobDataContributorId'))]",
+              "name": "[guid(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), parameters('containerAppPrincipalId'), variables('storageBlobDataContributorId'))]",
               "properties": {
                 "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('storageBlobDataContributorId'))]",
-                "principalId": "[parameters('appServicePrincipalId')]",
+                "principalId": "[parameters('containerAppPrincipalId')]",
                 "principalType": "ServicePrincipal"
               }
             },
@@ -1162,10 +1310,10 @@
               "type": "Microsoft.Authorization/roleAssignments",
               "apiVersion": "2022-04-01",
               "scope": "[format('Microsoft.KeyVault/vaults/{0}', parameters('keyVaultName'))]",
-              "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), parameters('appServicePrincipalId'), variables('kvSecretsUserId'))]",
+              "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), parameters('containerAppPrincipalId'), variables('kvSecretsUserId'))]",
               "properties": {
                 "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('kvSecretsUserId'))]",
-                "principalId": "[parameters('appServicePrincipalId')]",
+                "principalId": "[parameters('containerAppPrincipalId')]",
                 "principalType": "ServicePrincipal"
               }
             },
@@ -1173,10 +1321,10 @@
               "type": "Microsoft.Authorization/roleAssignments",
               "apiVersion": "2022-04-01",
               "scope": "[format('Microsoft.OperationalInsights/workspaces/{0}', parameters('logAnalyticsWorkspaceName'))]",
-              "name": "[guid(resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName')), parameters('appServicePrincipalId'), variables('monitoringMetricsPublisherId'))]",
+              "name": "[guid(resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName')), parameters('containerAppPrincipalId'), variables('monitoringMetricsPublisherId'))]",
               "properties": {
                 "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('monitoringMetricsPublisherId'))]",
-                "principalId": "[parameters('appServicePrincipalId')]",
+                "principalId": "[parameters('containerAppPrincipalId')]",
                 "principalType": "ServicePrincipal"
               }
             },
@@ -1184,10 +1332,21 @@
               "type": "Microsoft.Authorization/roleAssignments",
               "apiVersion": "2022-04-01",
               "scope": "[format('Microsoft.Insights/dataCollectionRules/{0}', last(split(parameters('dcrResourceId'), '/')))]",
-              "name": "[guid(resourceId('Microsoft.Insights/dataCollectionRules', last(split(parameters('dcrResourceId'), '/'))), parameters('appServicePrincipalId'), variables('monitoringMetricsPublisherId'))]",
+              "name": "[guid(resourceId('Microsoft.Insights/dataCollectionRules', last(split(parameters('dcrResourceId'), '/'))), parameters('containerAppPrincipalId'), variables('monitoringMetricsPublisherId'))]",
               "properties": {
                 "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('monitoringMetricsPublisherId'))]",
-                "principalId": "[parameters('appServicePrincipalId')]",
+                "principalId": "[parameters('containerAppPrincipalId')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[format('Microsoft.ContainerRegistry/registries/{0}', parameters('containerRegistryName'))]",
+              "name": "[guid(resourceId('Microsoft.ContainerRegistry/registries', parameters('containerRegistryName')), parameters('containerAppPrincipalId'), variables('acrPullRoleId'))]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('acrPullRoleId'))]",
+                "principalId": "[parameters('containerAppPrincipalId')]",
                 "principalType": "ServicePrincipal"
               }
             }
@@ -1195,7 +1354,8 @@
         }
       },
       "dependsOn": [
-        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('rgName')), 'Microsoft.Resources/deployments', 'appservice')]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('rgName')), 'Microsoft.Resources/deployments', 'containerapps')]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('rgName')), 'Microsoft.Resources/deployments', 'containerregistry')]",
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('rgName')), 'Microsoft.Resources/deployments', 'cosmosdb')]",
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('rgName')), 'Microsoft.Resources/deployments', 'keyvault')]",
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('rgName')), 'Microsoft.Resources/deployments', 'loganalytics')]",
@@ -1207,11 +1367,23 @@
   "outputs": {
     "appUrl": {
       "type": "string",
-      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('rgName')), 'Microsoft.Resources/deployments', 'appservice'), '2025-04-01').outputs.appUrl.value]"
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('rgName')), 'Microsoft.Resources/deployments', 'containerapps'), '2025-04-01').outputs.appUrl.value]"
     },
-    "appServicePrincipalId": {
+    "containerAppPrincipalId": {
       "type": "string",
-      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('rgName')), 'Microsoft.Resources/deployments', 'appservice'), '2025-04-01').outputs.principalId.value]"
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('rgName')), 'Microsoft.Resources/deployments', 'containerapps'), '2025-04-01').outputs.principalId.value]"
+    },
+    "containerAppName": {
+      "type": "string",
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('rgName')), 'Microsoft.Resources/deployments', 'containerapps'), '2025-04-01').outputs.containerAppName.value]"
+    },
+    "acrLoginServer": {
+      "type": "string",
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('rgName')), 'Microsoft.Resources/deployments', 'containerregistry'), '2025-04-01').outputs.loginServer.value]"
+    },
+    "acrName": {
+      "type": "string",
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('rgName')), 'Microsoft.Resources/deployments', 'containerregistry'), '2025-04-01').outputs.registryName.value]"
     },
     "deploymentIdentityClientId": {
       "type": "string",
@@ -1228,10 +1400,6 @@
     "resourceGroup": {
       "type": "string",
       "value": "[variables('rgName')]"
-    },
-    "appServiceName": {
-      "type": "string",
-      "value": "[format('app-{0}-{1}', parameters('appName'), parameters('env'))]"
     },
     "dceEndpoint": {
       "type": "string",

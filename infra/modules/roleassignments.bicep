@@ -1,12 +1,13 @@
-// Resource-group scoped role assignments for the App Service Managed Identity
+// Resource-group scoped role assignments for the Container App Managed Identity
 // Subscription-level assignments (Reader, KV Cert User) live in main.bicep
 
-param appServicePrincipalId string
-param cosmosAccountName       string
-param storageAccountName      string
-param keyVaultName            string
+param containerAppPrincipalId   string
+param cosmosAccountName         string
+param storageAccountName        string
+param keyVaultName              string
 param logAnalyticsWorkspaceName string
-param dcrResourceId           string   // Full resource ID of the Data Collection Rule
+param dcrResourceId             string   // Full resource ID of the Data Collection Rule
+param containerRegistryName     string
 
 // -- Cosmos DB Built-in Data Contributor -------------------------------------
 // Role definition ID: 00000000-0000-0000-0000-000000000002 (Cosmos-specific RBAC)
@@ -16,10 +17,10 @@ resource cosmosAccount 'Microsoft.DocumentDB/databaseAccounts@2023-04-15' existi
 
 resource cosmosRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2023-04-15' = {
   parent: cosmosAccount
-  name: guid(cosmosAccount.id, appServicePrincipalId, '00000000-0000-0000-0000-000000000002')
+  name: guid(cosmosAccount.id, containerAppPrincipalId, '00000000-0000-0000-0000-000000000002')
   properties: {
     roleDefinitionId: '${cosmosAccount.id}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002'
-    principalId: appServicePrincipalId
+    principalId: containerAppPrincipalId
     scope: cosmosAccount.id
   }
 }
@@ -32,11 +33,11 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-04-01' existing 
 }
 
 resource storageRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(storageAccount.id, appServicePrincipalId, storageBlobDataContributorId)
+  name: guid(storageAccount.id, containerAppPrincipalId, storageBlobDataContributorId)
   scope: storageAccount
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', storageBlobDataContributorId)
-    principalId: appServicePrincipalId
+    principalId: containerAppPrincipalId
     principalType: 'ServicePrincipal'
   }
 }
@@ -49,11 +50,11 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
 }
 
 resource kvSecretsUserAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(keyVault.id, appServicePrincipalId, kvSecretsUserId)
+  name: guid(keyVault.id, containerAppPrincipalId, kvSecretsUserId)
   scope: keyVault
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', kvSecretsUserId)
-    principalId: appServicePrincipalId
+    principalId: containerAppPrincipalId
     principalType: 'ServicePrincipal'
   }
 }
@@ -66,11 +67,11 @@ resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09
 }
 
 resource monitoringWorkspaceAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(logAnalyticsWorkspace.id, appServicePrincipalId, monitoringMetricsPublisherId)
+  name: guid(logAnalyticsWorkspace.id, containerAppPrincipalId, monitoringMetricsPublisherId)
   scope: logAnalyticsWorkspace
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', monitoringMetricsPublisherId)
-    principalId: appServicePrincipalId
+    principalId: containerAppPrincipalId
     principalType: 'ServicePrincipal'
   }
 }
@@ -81,11 +82,28 @@ resource dcrResource 'Microsoft.Insights/dataCollectionRules@2022-06-01' existin
 }
 
 resource monitoringDcrAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(dcrResource.id, appServicePrincipalId, monitoringMetricsPublisherId)
+  name: guid(dcrResource.id, containerAppPrincipalId, monitoringMetricsPublisherId)
   scope: dcrResource
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', monitoringMetricsPublisherId)
-    principalId: appServicePrincipalId
+    principalId: containerAppPrincipalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// -- AcrPull (Container App MI pulls images from ACR) -----------------------
+var acrPullRoleId = '7f951dda-4ed3-4680-a7ca-43fe172d538d'
+
+resource containerRegistry 'Microsoft.ContainerRegistry/registries@2023-07-01' existing = {
+  name: containerRegistryName
+}
+
+resource acrPullAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(containerRegistry.id, containerAppPrincipalId, acrPullRoleId)
+  scope: containerRegistry
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', acrPullRoleId)
+    principalId: containerAppPrincipalId
     principalType: 'ServicePrincipal'
   }
 }
