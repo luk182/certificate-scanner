@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.38.33.27573",
-      "templateHash": "2802810645348359937"
+      "templateHash": "4777339718249020100"
     }
   },
   "parameters": {
@@ -807,7 +807,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "13360207249989301941"
+              "templateHash": "10475978746267401913"
             }
           },
           "parameters": {
@@ -853,8 +853,8 @@
               "name": "[variables('planName')]",
               "location": "[parameters('location')]",
               "sku": {
-                "name": "B2",
-                "tier": "Basic"
+                "name": "F1",
+                "tier": "Free"
               },
               "properties": {
                 "reserved": true

@@ -15,7 +15,7 @@ var siteName = 'app-${appName}-${env}'
 resource appServicePlan 'Microsoft.Web/serverfarms@2023-01-01' = {
   name: planName
   location: location
-  sku: { name: 'B2', tier: 'Basic' }
+  sku: { name: 'F1', tier: 'Free' }
   properties: { reserved: true }
   kind: 'linux'
 }
