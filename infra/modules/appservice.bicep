@@ -7,6 +7,7 @@ param appInsightsConnectionString string
 param logAnalyticsWorkspaceId string
 param tenantId string
 param clientId string
+param keyVaultName string
 
 var planName = 'asp-${appName}-${env}'
 var siteName = 'app-${appName}-${env}'
@@ -41,6 +42,9 @@ resource appServiceApp 'Microsoft.Web/sites@2023-01-01' = {
         { name: 'LOG_ANALYTICS_WORKSPACE_ID',    value: logAnalyticsWorkspaceId }
         { name: 'FLASK_ENV',                     value: env }
         { name: 'SCM_DO_BUILD_DURING_DEPLOYMENT', value: 'true' }
+        // Secrets read from Key Vault via Managed Identity reference
+        { name: 'SECRET_KEY',          value: '@Microsoft.KeyVault(VaultName=${keyVaultName};SecretName=flask-secret-key)' }
+        { name: 'AZURE_CLIENT_SECRET', value: '@Microsoft.KeyVault(VaultName=${keyVaultName};SecretName=azure-client-secret)' }
       ]
     }
   }
