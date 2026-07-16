@@ -18,13 +18,13 @@ targetScope = 'managementGroup'
 @description('Principal ID of the App Service System-Assigned Managed Identity (output of main.bicep)')
 param appServicePrincipalId string
 
-// ── Built-in role IDs ────────────────────────────────────────────────────────
+// -- Built-in role IDs --------------------------------------------------------
 var readerRoleId        = 'acdd72a7-3385-48ef-bd42-f606fba81ae7'  // Reader
 var kvCertUserRoleId    = 'db79e9a7-68ee-4b58-9aeb-b90e7c24fcba'  // Key Vault Certificate User
 var kvSecretsUserRoleId = '4633458b-17de-408a-b874-0445c86b69e6'  // Key Vault Secrets User
 var websiteContribId    = 'de139f84-1756-47ae-9be6-808fbbe84772'  // Website Contributor (read App Svc certs)
 
-// ── Reader – enumerate all resources in all subscriptions ───────────────────
+// -- Reader – enumerate all resources in all subscriptions -------------------
 resource readerAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(managementGroup().id, appServicePrincipalId, readerRoleId)
   properties: {
@@ -34,7 +34,7 @@ resource readerAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' =
   }
 }
 
-// ── Key Vault Certificate User – read certs from customer Key Vaults ─────────
+// -- Key Vault Certificate User – read certs from customer Key Vaults ---------
 resource kvCertUserAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(managementGroup().id, appServicePrincipalId, kvCertUserRoleId)
   properties: {
@@ -44,7 +44,7 @@ resource kvCertUserAssignment 'Microsoft.Authorization/roleAssignments@2022-04-0
   }
 }
 
-// ── Key Vault Secrets User – read secrets referenced by resources ─────────────
+// -- Key Vault Secrets User – read secrets referenced by resources -------------
 resource kvSecretsUserAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(managementGroup().id, appServicePrincipalId, kvSecretsUserRoleId)
   properties: {
@@ -54,7 +54,7 @@ resource kvSecretsUserAssignment 'Microsoft.Authorization/roleAssignments@2022-0
   }
 }
 
-// ── Website Contributor – read App Service / Functions certificate bindings ───
+// -- Website Contributor – read App Service / Functions certificate bindings ---
 resource websiteContribAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(managementGroup().id, appServicePrincipalId, websiteContribId)
   properties: {

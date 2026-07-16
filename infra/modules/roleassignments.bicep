@@ -8,7 +8,7 @@ param keyVaultName            string
 param logAnalyticsWorkspaceName string
 param dcrResourceId           string   // Full resource ID of the Data Collection Rule
 
-// ── Cosmos DB Built-in Data Contributor ─────────────────────────────────────
+// -- Cosmos DB Built-in Data Contributor -------------------------------------
 // Role definition ID: 00000000-0000-0000-0000-000000000002 (Cosmos-specific RBAC)
 resource cosmosAccount 'Microsoft.DocumentDB/databaseAccounts@2024-02-15-preview' existing = {
   name: cosmosAccountName
@@ -24,7 +24,7 @@ resource cosmosRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssi
   }
 }
 
-// ── Storage Blob Data Contributor ────────────────────────────────────────────
+// -- Storage Blob Data Contributor --------------------------------------------
 var storageBlobDataContributorId = 'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
 
 resource storageAccount 'Microsoft.Storage/storageAccounts@2023-04-01' existing = {
@@ -41,7 +41,7 @@ resource storageRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-
   }
 }
 
-// ── Key Vault Secrets User (read flask-secret-key + azure-client-secret) ─────
+// -- Key Vault Secrets User (read flask-secret-key + azure-client-secret) -----
 var kvSecretsUserId = '4633458b-17de-408a-b874-0445c86b69e6'
 
 resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
@@ -58,7 +58,7 @@ resource kvSecretsUserAssignment 'Microsoft.Authorization/roleAssignments@2022-0
   }
 }
 
-// ── Monitoring Metrics Publisher (send custom logs to DCR) ───────────────────
+// -- Monitoring Metrics Publisher (send custom logs to DCR) -------------------
 var monitoringMetricsPublisherId = '3913510d-42f4-4e42-8a64-420c390055eb'
 
 resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' existing = {

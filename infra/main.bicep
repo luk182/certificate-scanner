@@ -10,11 +10,15 @@ param githubRepo string = 'certificate-scanner'
 
 var rgName = 'rg-${appName}-${env}'
 
-// ── Built-in role IDs (subscription scope) ───────────────────────────────────
+// Built-in role IDs (subscription scope)
 var readerRoleId        = 'acdd72a7-3385-48ef-bd42-f606fba81ae7'
 var kvCertUserRoleId    = 'db79e9a7-68ee-4b58-9aeb-b90e7c24fcba'
 var contributorRoleId   = 'b24988ac-6180-42a0-ab88-20f7382dd24c'
 var userAccessAdminId   = '18d7d88d-d35e-4fb5-a5c3-7773c20a72d9'
+
+// Deterministic names for role assignments (known at compile time)
+var appSvcResourceName  = 'app-${appName}-${env}'
+var deployIdName        = 'id-${appName}-deploy-${env}'
 
 resource rg 'Microsoft.Resources/resourceGroups@2023-07-01' = {
   name: rgName
@@ -71,7 +75,9 @@ module appService 'modules/appservice.bicep' = {
     clientId: clientId
     keyVaultName: keyVault.outputs.vaultName
   }
-} ───────────────────
+}
+
+// User-Assigned Managed Identity for GitHub Actions OIDC
 module deploymentIdentity 'modules/deploymentidentity.bicep' = {
   name: 'deploymentidentity'
   scope: rg
@@ -84,7 +90,7 @@ module deploymentIdentity 'modules/deploymentidentity.bicep' = {
   }
 }
 
-// ── Resource-level role assignments for App Service MI ───────────────────────
+// Resource-level role assignments for App Service MI
 module roleAssignments 'modules/roleassignments.bicep' = {
   name: 'roleassignments'
   scope: rg
@@ -98,9 +104,9 @@ module roleAssignments 'modules/roleassignments.bicep' = {
   }
 }
 
-// ── Subscription-scope: App Service MI gets Reader + KV Certificate User ─────
+// Subscription-scope: App Service MI - Reader + KV Certificate User
 resource appSvcReader 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(subscription().id, appService.outputs.principalId, readerRoleId)
+  name: guid(subscription().id, appSvcResourceName, readerRoleId)
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', readerRoleId)
     principalId: appService.outputs.principalId
@@ -109,7 +115,7 @@ resource appSvcReader 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
 }
 
 resource appSvcKvCertUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(subscription().id, appService.outputs.principalId, kvCertUserRoleId)
+  name: guid(subscription().id, appSvcResourceName, kvCertUserRoleId)
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', kvCertUserRoleId)
     principalId: appService.outputs.principalId
@@ -117,9 +123,9 @@ resource appSvcKvCertUser 'Microsoft.Authorization/roleAssignments@2022-04-01' =
   }
 }
 
-// ── Subscription-scope: Deployment Identity gets Contributor + UAA ────────────
+// Subscription-scope: Deployment Identity - Contributor + User Access Administrator
 resource deployContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(subscription().id, deploymentIdentity.outputs.principalId, contributorRoleId)
+  name: guid(subscription().id, deployIdName, contributorRoleId)
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', contributorRoleId)
     principalId: deploymentIdentity.outputs.principalId
@@ -128,7 +134,7 @@ resource deployContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' 
 }
 
 resource deployUAA 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(subscription().id, deploymentIdentity.outputs.principalId, userAccessAdminId)
+  name: guid(subscription().id, deployIdName, userAccessAdminId)
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', userAccessAdminId)
     principalId: deploymentIdentity.outputs.principalId
@@ -136,7 +142,7 @@ resource deployUAA 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   }
 }
 
-// ── Outputs ───────────────────────────────────────────────────────────────────
+// Outputs
 output appUrl                        string = appService.outputs.appUrl
 output appServicePrincipalId         string = appService.outputs.principalId
 output deploymentIdentityClientId    string = deploymentIdentity.outputs.clientId

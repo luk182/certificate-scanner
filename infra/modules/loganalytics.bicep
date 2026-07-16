@@ -6,7 +6,7 @@ var workspaceName = 'law-${appName}-${env}'
 var dceName       = 'dce-${appName}-${env}'
 var dcrName       = 'dcr-${appName}-${env}'
 
-// ── Log Analytics Workspace ──────────────────────────────────────────────
+// -- Log Analytics Workspace ----------------------------------------------
 resource workspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
   name: workspaceName
   location: location
@@ -38,7 +38,7 @@ resource customTable 'Microsoft.OperationalInsights/workspaces/tables@2023-09-01
   }
 }
 
-// ── Data Collection Endpoint ─────────────────────────────────────────────
+// -- Data Collection Endpoint ---------------------------------------------
 resource dce 'Microsoft.Insights/dataCollectionEndpoints@2022-06-01' = {
   name: dceName
   location: location
@@ -47,7 +47,7 @@ resource dce 'Microsoft.Insights/dataCollectionEndpoints@2022-06-01' = {
   }
 }
 
-// ── Data Collection Rule ────────────────────────────────────────────────
+// -- Data Collection Rule ------------------------------------------------
 resource dcr 'Microsoft.Insights/dataCollectionRules@2022-06-01' = {
   name: dcrName
   location: location
