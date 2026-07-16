@@ -25,25 +25,15 @@ resource fedCredMain 'Microsoft.ManagedIdentity/userAssignedIdentities/federated
   }
 }
 
-// GitHub Environment: dev
+// GitHub Environment: dev (must be sequential - concurrent federated credential writes are not supported)
 resource fedCredEnvDev 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2023-01-31' = {
   parent: deploymentIdentity
   name: 'github-env-dev'
+  dependsOn: [fedCredMain]
   properties: {
     audiences: ['api://AzureADTokenExchange']
     issuer: 'https://token.actions.githubusercontent.com'
     subject: 'repo:${githubOrg}/${githubRepo}:environment:dev'
-  }
-}
-
-// workflow_dispatch (manual trigger)
-resource fedCredDispatch 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2023-01-31' = {
-  parent: deploymentIdentity
-  name: 'github-workflow-dispatch'
-  properties: {
-    audiences: ['api://AzureADTokenExchange']
-    issuer: 'https://token.actions.githubusercontent.com'
-    subject: 'repo:${githubOrg}/${githubRepo}:ref:refs/heads/main'
   }
 }
 

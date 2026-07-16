@@ -10,7 +10,7 @@ resource cosmos 'Microsoft.DocumentDB/databaseAccounts@2024-02-15-preview' = {
   kind: 'GlobalDocumentDB'
   properties: {
     databaseAccountOfferType: 'Standard'
-    locations: [{ locationName: location, failoverPriority: 0 }]
+    locations: [{ locationName: location, failoverPriority: 0, isZoneRedundant: false }]
     consistencyPolicy: { defaultConsistencyLevel: 'Session' }
     disableLocalAuth: true
   }
