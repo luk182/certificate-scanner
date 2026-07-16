@@ -1,7 +1,8 @@
 targetScope = 'subscription'
 
 param location string = 'eastus'
-param cosmosLocation string = 'eastus2'   // eastus has capacity limits for CosmosDB
+param cosmosLocation string = 'eastus2'          // eastus has CosmosDB capacity limits
+param containerAppsLocation string = 'eastus2'   // eastus has AKS heavy usage
 param env string = 'dev'
 param appName string = 'cert-scanner'
 param tenantId string
@@ -71,7 +72,7 @@ module containerApp 'modules/containerapps.bicep' = {
   name: 'containerapps'
   scope: rg
   params: {
-    location: location
+    location: containerAppsLocation
     env: env
     appName: appName
     cosmosEndpoint: cosmos.outputs.endpoint
