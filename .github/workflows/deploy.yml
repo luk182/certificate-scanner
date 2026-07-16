@@ -1,0 +1,188 @@
+# =============================================================
+# Certificate Scanner – CI/CD Pipeline
+# =============================================================
+#
+# FIRST-TIME BOOTSTRAP (run once before this workflow can self-deploy):
+#
+#   1. Create an Azure AD App Registration manually in the portal.
+#      Note its Tenant ID, Client ID, and create a Client Secret.
+#
+#   2. Run the Bicep with your own credentials to provision infra:
+#      az login
+#      az deployment sub create \
+#        --location eastus \
+#        --template-file infra/main.bicep \
+#        --parameters @infra/parameters/dev.bicepparam \
+#                     tenantId="<TENANT_ID>" clientId="<CLIENT_ID>"
+#
+#   3. The deployment outputs `deploymentIdentityClientId`.
+#      Set that value as the AZURE_CLIENT_ID GitHub secret.
+#
+#   4. (Optional) For multi-subscription scanning, run the MG role assignments:
+#      az deployment mg create \
+#        --management-group-id <ROOT_MG_ID> \
+#        --location eastus \
+#        --template-file infra/roleassignments-mg.bicep \
+#        --parameters appServicePrincipalId=<APP_SERVICE_PRINCIPAL_ID>
+#
+# GITHUB SECRETS REQUIRED:
+#   AZURE_CLIENT_ID          – Client ID of the deployment UAMI (from step 3)
+#   AZURE_TENANT_ID          – Azure tenant ID
+#   AZURE_SUBSCRIPTION_ID    – Target subscription ID
+#   APP_CLIENT_ID            – App Registration client ID (for user login / MSAL)
+#   APP_CLIENT_SECRET        – App Registration client secret (stored in Key Vault)
+#   FLASK_SECRET_KEY         – Random strong secret for Flask sessions (stored in Key Vault)
+# =============================================================
+
+name: Certificate Scanner CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  PYTHON_VERSION:      '3.12'
+  CONTAINER_APP_NAME:  'app-cert-scanner-dev'
+  RESOURCE_GROUP:      'rg-cert-scanner-dev'
+  LOCATION:            'eastus'
+
+# ── Job 1: Test (runs on every push and PR) ───────────────────────────────────
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pytest
+
+      - name: Run tests
+        env:
+          AZURE_TENANT_ID:              test-tenant-id
+          AZURE_CLIENT_ID:              test-client-id
+          SECRET_KEY:                   test-secret-key
+          COSMOS_ENDPOINT:              https://test.documents.azure.com:443/
+          STORAGE_ACCOUNT_URL:          https://test.blob.core.windows.net
+          APPINSIGHTS_CONNECTION_STRING: InstrumentationKey=00000000-0000-0000-0000-000000000000
+          LOG_ANALYTICS_WORKSPACE_ID:   /subscriptions/test/resourceGroups/rg/providers/Microsoft.OperationalInsights/workspaces/test
+          LOG_ANALYTICS_DCE_ENDPOINT:   https://test.ingest.monitor.azure.com
+          LOG_ANALYTICS_DCR_IMMUTABLE_ID: dcr-test
+        run: python -m pytest tests/ -v --tb=short
+
+# ── Job 2: Deploy Infrastructure (main branch only) ──────────────────────────
+  deploy-infra:
+    name: Deploy Infrastructure
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    environment: dev
+    outputs:
+      kv_name:          ${{ steps.bicep.outputs.kv_name }}
+      dce_endpoint:     ${{ steps.bicep.outputs.dce_endpoint }}
+      dcr_immutable_id: ${{ steps.bicep.outputs.dcr_immutable_id }}
+      acr_name:         ${{ steps.bicep.outputs.acr_name }}
+      acr_login_server: ${{ steps.bicep.outputs.acr_login_server }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id:       ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy Bicep infrastructure
+        id: bicep
+        run: |
+          RESULT=$(az deployment sub create \
+            --location "${{ env.LOCATION }}" \
+            --template-file infra/main.bicep \
+            --parameters @infra/parameters/dev.bicepparam \
+                         tenantId="${{ secrets.AZURE_TENANT_ID }}" \
+                         clientId="${{ secrets.APP_CLIENT_ID }}" \
+            --query 'properties.outputs' -o json)
+
+          echo "$RESULT" | jq .
+          echo "kv_name=$(echo $RESULT           | jq -r '.keyVaultName.value')"          >> $GITHUB_OUTPUT
+          echo "dce_endpoint=$(echo $RESULT       | jq -r '.dceEndpoint.value // ""')"   >> $GITHUB_OUTPUT
+          echo "dcr_immutable_id=$(echo $RESULT   | jq -r '.dcrImmutableId.value // ""')" >> $GITHUB_OUTPUT
+          echo "acr_name=$(echo $RESULT           | jq -r '.acrName.value')"              >> $GITHUB_OUTPUT
+          echo "acr_login_server=$(echo $RESULT   | jq -r '.acrLoginServer.value')"       >> $GITHUB_OUTPUT
+
+      - name: Write secrets to Key Vault
+        run: |
+          KV="${{ steps.bicep.outputs.kv_name }}"
+          az keyvault secret set --vault-name "$KV" \
+            --name "flask-secret-key"    --value "${{ secrets.FLASK_SECRET_KEY }}"
+          az keyvault secret set --vault-name "$KV" \
+            --name "azure-client-secret" --value "${{ secrets.APP_CLIENT_SECRET }}"
+
+# Job 3: Deploy Application - build Docker image, push to ACR, update Container App
+  deploy-app:
+    name: Deploy Application
+    runs-on: ubuntu-latest
+    needs: deploy-infra
+    environment: dev
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id:       ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Build and push image via ACR Tasks
+        run: |
+          ACR="${{ needs.deploy-infra.outputs.acr_name }}"
+          az acr build \
+            --registry "$ACR" \
+            --image    "cert-scanner/app:${{ github.sha }}" \
+            --image    "cert-scanner/app:latest" \
+            .
+
+      - name: Update Container App secrets with real values
+        run: |
+          az containerapp secret set \
+            --name            "${{ env.CONTAINER_APP_NAME }}" \
+            --resource-group  "${{ env.RESOURCE_GROUP }}" \
+            --secrets         "flask-secret-key=${{ secrets.FLASK_SECRET_KEY }}" \
+                              "azure-client-secret=${{ secrets.APP_CLIENT_SECRET }}"
+
+      - name: Deploy new image to Container App
+        run: |
+          ACR_SERVER="${{ needs.deploy-infra.outputs.acr_login_server }}"
+          DCE="${{ needs.deploy-infra.outputs.dce_endpoint }}"
+          DCR="${{ needs.deploy-infra.outputs.dcr_immutable_id }}"
+
+          az containerapp update \
+            --name           "${{ env.CONTAINER_APP_NAME }}" \
+            --resource-group "${{ env.RESOURCE_GROUP }}" \
+            --image          "${ACR_SERVER}/cert-scanner/app:${{ github.sha }}" \
+            --set-env-vars   "LOG_ANALYTICS_DCE_ENDPOINT=${DCE}" \
+                             "LOG_ANALYTICS_DCR_IMMUTABLE_ID=${DCR}"
+
+      - name: Print app URL
+        run: |
+          URL=$(az containerapp show \
+            --name           "${{ env.CONTAINER_APP_NAME }}" \
+            --resource-group "${{ env.RESOURCE_GROUP }}" \
+            --query          "properties.configuration.ingress.fqdn" -o tsv)
+          echo "### Deployed to https://$URL" >> $GITHUB_STEP_SUMMARY

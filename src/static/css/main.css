@@ -1,0 +1,22 @@
+body { background-color: #f0f2f5; font-family: 'Segoe UI', system-ui, sans-serif; }
+.navbar { box-shadow: 0 2px 12px rgba(0,0,0,0.2); }
+.card { border-radius: 12px; border: none; box-shadow: 0 2px 12px rgba(0,0,0,0.07); }
+.card-aggregate { border: 2px solid #0d6efd !important; background: linear-gradient(135deg,#f8f9ff,#fff); }
+
+/* Status badges */
+.badge-healthy  { background-color: #198754; color: #fff; }
+.badge-warning  { background-color: #ffc107; color: #000; }
+.badge-expired  { background-color: #dc3545; color: #fff; }
+
+/* Table row colouring */
+.table tbody tr.row-expired  td { background-color: #fff0f0; }
+.table tbody tr.row-warning  td { background-color: #fffce6; }
+.table tbody tr.row-healthy  td { background-color: #f0fff4; }
+
+/* Dashboard numbers */
+.stat-number { font-size: 2.2rem; font-weight: 800; line-height: 1; }
+.stat-healthy { color: #198754; }
+.stat-warning { color: #ffc107; }
+.stat-expired { color: #dc3545; }
+
+.resource-icon { font-size: 1.4rem; }
