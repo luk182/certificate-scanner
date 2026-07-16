@@ -5,13 +5,17 @@
     "_generator": {
       "name": "bicep",
       "version": "0.38.33.27573",
-      "templateHash": "9559452381937763986"
+      "templateHash": "2802810645348359937"
     }
   },
   "parameters": {
     "location": {
       "type": "string",
       "defaultValue": "eastus"
+    },
+    "cosmosLocation": {
+      "type": "string",
+      "defaultValue": "eastus2"
     },
     "env": {
       "type": "string",
@@ -417,7 +421,7 @@
         "mode": "Incremental",
         "parameters": {
           "location": {
-            "value": "[parameters('location')]"
+            "value": "[parameters('cosmosLocation')]"
           },
           "env": {
             "value": "[parameters('env')]"
@@ -433,7 +437,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "12451819492872047999"
+              "templateHash": "17988879883213719266"
             }
           },
           "parameters": {
@@ -453,7 +457,7 @@
           "resources": [
             {
               "type": "Microsoft.DocumentDB/databaseAccounts",
-              "apiVersion": "2024-02-15-preview",
+              "apiVersion": "2023-04-15",
               "name": "[variables('accountName')]",
               "location": "[parameters('location')]",
               "kind": "GlobalDocumentDB",
@@ -462,7 +466,8 @@
                 "locations": [
                   {
                     "locationName": "[parameters('location')]",
-                    "failoverPriority": 0
+                    "failoverPriority": 0,
+                    "isZoneRedundant": false
                   }
                 ],
                 "consistencyPolicy": {
@@ -473,7 +478,7 @@
             },
             {
               "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases",
-              "apiVersion": "2024-02-15-preview",
+              "apiVersion": "2023-04-15",
               "name": "[format('{0}/{1}', variables('accountName'), 'certificate-scanner')]",
               "properties": {
                 "resource": {
@@ -486,7 +491,7 @@
             },
             {
               "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
-              "apiVersion": "2024-02-15-preview",
+              "apiVersion": "2023-04-15",
               "name": "[format('{0}/{1}/{2}', variables('accountName'), 'certificate-scanner', 'certificates')]",
               "properties": {
                 "resource": {
@@ -513,7 +518,7 @@
             },
             {
               "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
-              "apiVersion": "2024-02-15-preview",
+              "apiVersion": "2023-04-15",
               "name": "[format('{0}/{1}/{2}', variables('accountName'), 'certificate-scanner', 'settings')]",
               "properties": {
                 "resource": {
@@ -534,7 +539,7 @@
           "outputs": {
             "endpoint": {
               "type": "string",
-              "value": "[reference(resourceId('Microsoft.DocumentDB/databaseAccounts', variables('accountName')), '2024-02-15-preview').documentEndpoint]"
+              "value": "[reference(resourceId('Microsoft.DocumentDB/databaseAccounts', variables('accountName')), '2023-04-15').documentEndpoint]"
             },
             "cosmosAccountName": {
               "type": "string",
@@ -980,7 +985,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "1388024631434231055"
+              "templateHash": "12236773930332199839"
             }
           },
           "parameters": {
@@ -1037,22 +1042,8 @@
                 "subject": "[format('repo:{0}/{1}:environment:dev', parameters('githubOrg'), parameters('githubRepo'))]"
               },
               "dependsOn": [
-                "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('identityName'))]"
-              ]
-            },
-            {
-              "type": "Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials",
-              "apiVersion": "2023-01-31",
-              "name": "[format('{0}/{1}', variables('identityName'), 'github-workflow-dispatch')]",
-              "properties": {
-                "audiences": [
-                  "api://AzureADTokenExchange"
-                ],
-                "issuer": "https://token.actions.githubusercontent.com",
-                "subject": "[format('repo:{0}/{1}:ref:refs/heads/main', parameters('githubOrg'), parameters('githubRepo'))]"
-              },
-              "dependsOn": [
-                "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('identityName'))]"
+                "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('identityName'))]",
+                "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials', variables('identityName'), 'github-main')]"
               ]
             }
           ],
@@ -1117,7 +1108,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "3482508077346149586"
+              "templateHash": "11689900853247446581"
             }
           },
           "parameters": {
@@ -1148,7 +1139,7 @@
           "resources": [
             {
               "type": "Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments",
-              "apiVersion": "2024-02-15-preview",
+              "apiVersion": "2023-04-15",
               "name": "[format('{0}/{1}', parameters('cosmosAccountName'), guid(resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosAccountName')), parameters('appServicePrincipalId'), '00000000-0000-0000-0000-000000000002'))]",
               "properties": {
                 "roleDefinitionId": "[format('{0}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002', resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosAccountName')))]",

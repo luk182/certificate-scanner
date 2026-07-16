@@ -4,7 +4,7 @@ param appName string
 
 var accountName = 'cosmos-${appName}-${env}'
 
-resource cosmos 'Microsoft.DocumentDB/databaseAccounts@2024-02-15-preview' = {
+resource cosmos 'Microsoft.DocumentDB/databaseAccounts@2023-04-15' = {
   name: accountName
   location: location
   kind: 'GlobalDocumentDB'
@@ -16,13 +16,13 @@ resource cosmos 'Microsoft.DocumentDB/databaseAccounts@2024-02-15-preview' = {
   }
 }
 
-resource database 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2024-02-15-preview' = {
+resource database 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2023-04-15' = {
   parent: cosmos
   name: 'certificate-scanner'
   properties: { resource: { id: 'certificate-scanner' } }
 }
 
-resource certsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-02-15-preview' = {
+resource certsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2023-04-15' = {
   parent: database
   name: 'certificates'
   properties: {
@@ -34,7 +34,7 @@ resource certsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/cont
   }
 }
 
-resource settingsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-02-15-preview' = {
+resource settingsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2023-04-15' = {
   parent: database
   name: 'settings'
   properties: {

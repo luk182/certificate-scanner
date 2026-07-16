@@ -1,6 +1,7 @@
 targetScope = 'subscription'
 
 param location string = 'eastus'
+param cosmosLocation string = 'eastus2'   // eastus has capacity limits for CosmosDB
 param env string = 'dev'
 param appName string = 'cert-scanner'
 param tenantId string
@@ -45,7 +46,7 @@ module appInsights 'modules/appinsights.bicep' = {
 module cosmos 'modules/cosmosdb.bicep' = {
   name: 'cosmosdb'
   scope: rg
-  params: { location: location, env: env, appName: appName }
+  params: { location: cosmosLocation, env: env, appName: appName }
 }
 
 module storage 'modules/storage.bicep' = {

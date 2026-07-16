@@ -10,11 +10,11 @@ param dcrResourceId           string   // Full resource ID of the Data Collectio
 
 // -- Cosmos DB Built-in Data Contributor -------------------------------------
 // Role definition ID: 00000000-0000-0000-0000-000000000002 (Cosmos-specific RBAC)
-resource cosmosAccount 'Microsoft.DocumentDB/databaseAccounts@2024-02-15-preview' existing = {
+resource cosmosAccount 'Microsoft.DocumentDB/databaseAccounts@2023-04-15' existing = {
   name: cosmosAccountName
 }
 
-resource cosmosRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2024-02-15-preview' = {
+resource cosmosRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2023-04-15' = {
   parent: cosmosAccount
   name: guid(cosmosAccount.id, appServicePrincipalId, '00000000-0000-0000-0000-000000000002')
   properties: {
