@@ -1,23 +1,97 @@
-# Flask Template
+# Certificate Scanner
 
-This sample repo contains the recommended structure for a Python Flask project. In this sample, we use `flask` to build a web application and the `pytest` to run tests.
+A production-ready web application to inventory and monitor TLS certificates across Azure resources: **APIM, App Gateway, App Service, Functions, Logic Apps, and Front Door**.
 
- For a more in-depth tutorial, see our [Flask tutorial](https://code.visualstudio.com/docs/python/tutorial-flask).
+## Architecture
 
- The code in this repo aims to follow Python style guidelines as outlined in [PEP 8](https://peps.python.org/pep-0008/).
+| Layer | Technology |
+|---|---|
+| Frontend | Bootstrap 5 + Vanilla JS (server-rendered via Flask) |
+| Backend | Python 3.12 / Flask |
+| Database | Azure CosmosDB (NoSQL) |
+| Storage | Azure Blob Storage (CSV exports) |
+| Auth | Azure AD (MSAL OAuth2) |
+| Hosting | Azure App Service (Linux) |
+| Monitoring | Application Insights + Log Analytics |
 
-## Running the Sample
+## Local Development
 
-To successfully run this example, we recommend the following VS Code extensions:
+```bash
+# 1. Clone and enter the repo
+git clone https://github.com/luk182/certificate-scanner
+cd certificate-scanner
 
-- [Python](https://marketplace.visualstudio.com/items?itemName=ms-python.python)
-- [Python Debugger](https://marketplace.visualstudio.com/items?itemName=ms-python.debugpy)
-- [Pylance](https://marketplace.visualstudio.com/items?itemName=ms-python.vscode-pylance) 
+# 2. Create virtual environment
+python -m venv .venv
+.venv\Scripts\activate   # Windows
 
-- Open the template folder in VS Code (**File** > **Open Folder...**)
-- Create a Python virtual environment using the **Python: Create Environment** command found in the Command Palette (**View > Command Palette**). Ensure you install dependencies found in the `pyproject.toml` file
-- Ensure your newly created environment is selected using the **Python: Select Interpreter** command found in the Command Palette
-- Run the app using the Run and Debug view or by pressing `F5`
-- To test your app, ensure you have the dependencies from `dev-requirements.txt` installed in your environment
-- Navigate to the Test Panel to configure your Python test or by triggering the **Python: Configure Tests** command from the Command Palette
-- Run tests in the Test Panel or by clicking the Play Button next to the individual tests in the `test_app.py` file
+# 3. Install dependencies
+pip install -r requirements.txt
+
+# 4. Configure environment
+copy .env.example .env
+# Edit .env with your Azure resource values
+
+# 5. Login to Azure (used by DefaultAzureCredential in dev)
+az login
+
+# 6. Run
+flask --app app run --debug --port 5000
+```
+
+## Azure Deployment
+
+```bash
+# Deploy infrastructure (Bicep)
+az deployment sub create \
+  --location eastus \
+  --template-file infra/main.bicep \
+  --parameters infra/parameters/dev.bicepparam \
+               tenantId="<TENANT_ID>" \
+               clientId="<APP_CLIENT_ID>"
+```
+
+See `infra/parameters/dev.bicepparam` for parameters to fill in.
+
+## Required Managed Identity Permissions
+
+The App Service uses a **System-Assigned Managed Identity**. Grant the following roles:
+
+### Azure RBAC (subscription or management group scope)
+
+| Role | Purpose |
+|---|---|
+| `Reader` | Enumerate all resources |
+| `API Management Service Reader` | Read APIM hostname configs |
+| `Website Contributor` (read is sufficient) | Read App Service / Functions / Logic Apps certs |
+| `Network Contributor` (or `Reader`) | Read App Gateway SSL certs |
+| `Front Door Reader` | Read Front Door custom HTTPS configs |
+
+### Key Vault (per vault)
+
+| Model | Permission |
+|---|---|
+| RBAC | `Key Vault Certificate User` |
+| Access Policy | `Get`, `List` on Certificates |
+
+### Data Plane
+
+| Resource | Role |
+|---|---|
+| CosmosDB | `Cosmos DB Built-in Data Contributor` |
+| Storage Account | `Storage Blob Data Contributor` |
+| Log Analytics DCR | `Monitoring Metrics Publisher` |
+
+## GitHub Secrets Required
+
+| Secret | Description |
+|---|---|
+| `AZURE_CLIENT_ID` | App Registration client ID (GitHub OIDC) |
+| `AZURE_TENANT_ID` | Azure tenant ID |
+| `AZURE_SUBSCRIPTION_ID` | Target subscription |
+| `APP_CLIENT_ID` | App Registration client ID (MSAL login) |
+| `APP_CLIENT_SECRET` | App Registration client secret |
+| `FLASK_SECRET_KEY` | Random secret for Flask sessions |
+| `LOG_ANALYTICS_DCE_ENDPOINT` | Data Collection Endpoint URL |
+| `LOG_ANALYTICS_DCR_IMMUTABLE_ID` | Data Collection Rule immutable ID |
+
